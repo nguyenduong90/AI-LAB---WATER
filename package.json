@@ -1,0 +1,27 @@
+{
+  "name": "ai-lab-khoa-hoc-lop-4",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Một phòng thí nghiệm ảo tương tác giúp học sinh tiểu học khám phá các khái niệm về sự bay hơi và ngưng tụ của nước với sự hướng dẫn của một trợ lý AI thân thiện.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^0.14.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0"
+  }
+}
