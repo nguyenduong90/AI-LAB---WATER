@@ -49,8 +49,20 @@ const ApiKeySelectionScreen: React.FC<{ onSelect: () => void; isChecking: boolea
   <div className="bg-gradient-to-br from-blue-100 to-cyan-100 min-h-screen flex items-center justify-center p-4">
     <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-8 max-w-lg text-center">
       <h1 className="text-3xl font-bold text-red-600 mb-4">Chào mừng đến với AI Lab!</h1>
-      <p className="text-gray-700 mb-6">
+      <p className="text-gray-700 mb-2">
         Để bắt đầu buổi thí nghiệm, vui lòng chọn Google AI API Key của bạn. Việc này giúp đảm bảo bạn có thể quản lý việc sử dụng và chi phí một cách độc lập.
+      </p>
+      <p className="text-gray-600 mb-6">
+        Nếu chưa có API Key, bạn có thể 
+        <a 
+          href="https://aistudio.google.com/app/apikey" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-blue-600 font-semibold hover:underline mx-1"
+        >
+          tạo một key mới tại đây
+        </a> 
+        và quay lại để chọn.
       </p>
       <button
         onClick={onSelect}
