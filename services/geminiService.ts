@@ -4,11 +4,11 @@ import { ActionType, LabState, Quiz } from '../types';
 const model = 'gemini-2.5-flash';
 const ttsModel = 'gemini-2.5-flash-preview-tts';
 
-const getAiClient = () => {
-    if (!process.env.API_KEY) {
-        throw new Error("API_KEY environment variable is not set. Please select an API Key.");
+const getAiClient = (apiKey: string) => {
+    if (!apiKey) {
+        throw new Error("API Key is missing.");
     }
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    return new GoogleGenAI({ apiKey });
 };
 
 const responseSchema = {
@@ -46,10 +46,10 @@ Mục tiêu là giúp các con hiểu bài một cách dễ dàng và thú vị.
 Tuyệt đối không sử dụng markdown.`;
 
 
-async function generateAudio(textToSpeak: string): Promise<string | null> {
+async function generateAudio(textToSpeak: string, apiKey: string): Promise<string | null> {
     if (!textToSpeak) return null;
     try {
-        const ai = getAiClient();
+        const ai = getAiClient(apiKey);
         const response = await ai.models.generateContent({
             model: ttsModel,
             contents: [{ parts: [{ text: textToSpeak }] }],
@@ -70,8 +70,8 @@ async function generateAudio(textToSpeak: string): Promise<string | null> {
     }
 }
 
-export async function getInitialGreeting(): Promise<{ text: string; audio: string | null }> {
-    const ai = getAiClient();
+export async function getInitialGreeting(apiKey: string): Promise<{ text: string; audio: string | null }> {
+    const ai = getAiClient(apiKey);
     const response = await ai.models.generateContent({
         model,
         contents: "Hãy viết một lời chào mừng ngắn gọn (1 câu) để bắt đầu buổi thí nghiệm ảo.",
@@ -80,7 +80,7 @@ export async function getInitialGreeting(): Promise<{ text: string; audio: strin
         }
     });
     const text = response.text.trim();
-    const audio = await generateAudio(text);
+    const audio = await generateAudio(text, apiKey);
     return { text, audio };
 }
 
@@ -109,10 +109,10 @@ function buildPrompt(action: ActionType, labState: LabState, actionHistory: Acti
     }
 }
 
-export async function getAiResponse(action: ActionType, labState: LabState, actionHistory: ActionType[], userAnswer?: string, currentQuiz?: Quiz) {
+export async function getAiResponse(apiKey: string, action: ActionType, labState: LabState, actionHistory: ActionType[], userAnswer?: string, currentQuiz?: Quiz) {
     const prompt = buildPrompt(action, labState, actionHistory, userAnswer, currentQuiz);
 
-    const ai = getAiClient();
+    const ai = getAiClient(apiKey);
     const response = await ai.models.generateContent({
         model,
         contents: prompt,
@@ -133,7 +133,7 @@ export async function getAiResponse(action: ActionType, labState: LabState, acti
         
         // Combine explanation and question for a single audio generation
         const textToSpeak = quiz ? `${explanation} ${quiz.question}` : explanation;
-        const audio = await generateAudio(textToSpeak);
+        const audio = await generateAudio(textToSpeak, apiKey);
         
         return {
             explanation,
@@ -144,7 +144,7 @@ export async function getAiResponse(action: ActionType, labState: LabState, acti
         console.error("Failed to parse Gemini JSON response:", e);
         console.error("Raw response text:", response.text);
         const explanation = response.text || "Có lỗi xảy ra, con thử lại sau nhé.";
-        const audio = await generateAudio(explanation);
+        const audio = await generateAudio(explanation, apiKey);
         return {
             explanation,
             quiz: null,

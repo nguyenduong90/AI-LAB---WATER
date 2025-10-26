@@ -45,46 +45,82 @@ const initialLabState: LabState = {
   isSaltInWater: false,
 };
 
-const ApiKeySelectionScreen: React.FC<{ onSelect: () => void; isChecking: boolean }> = ({ onSelect, isChecking }) => (
-  <div className="bg-gradient-to-br from-blue-100 to-cyan-100 min-h-screen flex items-center justify-center p-4">
-    <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-8 max-w-lg text-center">
-      <h1 className="text-3xl font-bold text-red-600 mb-4">Chào mừng đến với AI Lab!</h1>
-      <p className="text-gray-700 mb-2">
-        Để bắt đầu buổi thí nghiệm, vui lòng chọn Google AI API Key của bạn. Việc này giúp đảm bảo bạn có thể quản lý việc sử dụng và chi phí một cách độc lập.
-      </p>
-      <p className="text-gray-600 mb-6">
-        Nếu chưa có API Key, bạn có thể 
-        <a 
-          href="https://aistudio.google.com/app/apikey" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-blue-600 font-semibold hover:underline mx-1"
+const ApiKeySelectionScreen: React.FC<{ onApiKeySet: (key: string) => void }> = ({ onApiKeySet }) => {
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim()) {
+      setError('Vui lòng nhập API Key.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Test the key by making an initial, lightweight call.
+      await getInitialGreeting(inputValue);
+      onApiKeySet(inputValue);
+    } catch (err) {
+      console.error('API Key validation failed:', err);
+      setError('API Key không hợp lệ hoặc đã xảy ra lỗi mạng. Vui lòng kiểm tra lại Key và thử lại.');
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-gradient-to-br from-blue-100 to-cyan-100 min-h-screen flex items-center justify-center p-4">
+      <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-8 max-w-lg text-center w-full">
+        <h1 className="text-3xl font-bold text-red-600 mb-4">Chào mừng đến với AI Lab!</h1>
+        <p className="text-gray-700 mb-4">
+          Để bắt đầu, vui lòng nhập Google AI API Key của bạn vào ô bên dưới.
+        </p>
+        <div className="mb-4">
+          <input
+            type="password"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Dán API Key của bạn vào đây"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isLoading}
+            autoComplete="off"
+          />
+        </div>
+        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+        <p className="text-gray-600 mb-6 text-sm">
+          Nếu chưa có API Key, bạn có thể 
+          <a 
+            href="https://aistudio.google.com/app/apikey" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 font-semibold hover:underline mx-1"
+          >
+            tạo một key mới tại đây
+          </a>.
+        </p>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full px-8 py-4 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-blue-400 disabled:cursor-wait"
         >
-          tạo một key mới tại đây
-        </a> 
-        và quay lại để chọn.
-      </p>
-      <button
-        onClick={onSelect}
-        disabled={isChecking}
-        className="w-full px-8 py-4 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-blue-400 disabled:cursor-wait"
-      >
-        {isChecking ? 'Đang kiểm tra...' : 'Chọn Google AI API Key'}
-      </button>
-      <p className="text-xs text-gray-500 mt-4">
-        Bằng cách tiếp tục, bạn đồng ý với các điều khoản thanh toán.
-        <a
-          href="https://ai.google.dev/gemini-api/docs/billing"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:underline ml-1"
-        >
-          Tìm hiểu thêm.
-        </a>
-      </p>
+          {isLoading ? 'Đang xác thực...' : 'Bắt đầu Thí nghiệm'}
+        </button>
+        <p className="text-xs text-gray-500 mt-4">
+          Key của bạn sẽ chỉ được lưu trong trình duyệt cho phiên này.
+          <a
+            href="https://ai.google.dev/gemini-api/docs/billing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline ml-1"
+          >
+            Tìm hiểu thêm về thanh toán.
+          </a>
+        </p>
+      </form>
     </div>
-  </div>
-);
+  );
+};
 
 
 // Fix: Changed return type from JSX.Element to React.ReactElement to resolve namespace issue.
@@ -94,8 +130,7 @@ export default function App(): React.ReactElement {
   const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [actionHistory, setActionHistory] = useState<ActionType[]>([]);
-  const [isApiKeySet, setIsApiKeySet] = useState(false);
-  const [isCheckingApiKey, setIsCheckingApiKey] = useState(true);
+  const [apiKey, setApiKey] = useState<string | null>(null);
 
   const labStateRef = useRef(labState);
   labStateRef.current = labState;
@@ -103,31 +138,12 @@ export default function App(): React.ReactElement {
   const soundEffects = useSoundEffects(audioContextRef);
   const prevMessagesLength = useRef(messages.length);
 
-  useEffect(() => {
-    const checkApiKey = async () => {
-      setIsCheckingApiKey(true);
-      if ((window as any).aistudio && await (window as any).aistudio.hasSelectedApiKey()) {
-        setIsApiKeySet(true);
-      }
-      setIsCheckingApiKey(false);
-    };
-    checkApiKey();
-  }, []);
-
-  const handleSelectApiKey = async () => {
-    if ((window as any).aistudio) {
-        await (window as any).aistudio.openSelectKey();
-        if (await (window as any).aistudio.hasSelectedApiKey()) {
-            setIsApiKeySet(true);
-        }
-    }
-  };
-
   const handleApiError = (error: any) => {
     console.error('An API error occurred:', error);
-    if (error instanceof Error && error.message.includes("Requested entity was not found.")) {
-      setIsApiKeySet(false);
-      setMessages([{ id: 'api-key-error', sender: MessageSender.AI, text: 'Có vẻ như API Key của bạn không hợp lệ. Vui lòng chọn lại một API Key khác để tiếp tục nhé.' }]);
+    const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+    if (errorMessage.includes("api key not valid") || errorMessage.includes("permission denied") || errorMessage.includes("requested entity was not found")) {
+        setMessages(prev => [...prev, { id: 'api-key-error', sender: MessageSender.AI, text: 'API Key của bạn không hợp lệ hoặc đã hết hạn. Vui lòng nhập lại một Key khác để tiếp tục.' }]);
+        setApiKey(null);
     } else {
        setMessages(prev => [...prev, { id: Date.now().toString(), sender: MessageSender.AI, text: 'Ôi, có lỗi xảy ra rồi. Con thử lại nhé?' }]);
     }
@@ -171,11 +187,11 @@ export default function App(): React.ReactElement {
   }, []);
 
   const loadInitialGreeting = useCallback(async () => {
-    if (!isApiKeySet) return;
+    if (!apiKey) return;
     setIsLoading(true);
     setMessages([]);
     try {
-      const { text, audio } = await getInitialGreeting();
+      const { text, audio } = await getInitialGreeting(apiKey);
       setMessages([{ id: 'init', sender: MessageSender.AI, text, audio }]);
       playAudio(audio);
     } catch (error) {
@@ -184,13 +200,13 @@ export default function App(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [playAudio, isApiKeySet]);
+  }, [playAudio, apiKey]);
 
   useEffect(() => {
-    if (isApiKeySet) {
+    if (apiKey) {
         loadInitialGreeting();
     }
-  }, [isApiKeySet, loadInitialGreeting]);
+  }, [apiKey]);
   
   useEffect(() => {
     // Play sound on new AI message, but not the initial greeting
@@ -206,7 +222,7 @@ export default function App(): React.ReactElement {
   const handleAction = useCallback(async (action: ActionType) => {
     initAudioContext();
     soundEffects.playClick();
-    if (isLoading) return;
+    if (isLoading || !apiKey) return;
     setIsLoading(true);
     setActionHistory(prev => [...prev, action]);
 
@@ -229,7 +245,7 @@ export default function App(): React.ReactElement {
     }
     
     try {
-      const response = await getAiResponse(action, labStateRef.current, actionHistory);
+      const response = await getAiResponse(apiKey, action, labStateRef.current, actionHistory);
       const newAiMessage = { id: Date.now().toString(), sender: MessageSender.AI, text: response.explanation, audio: response.audio };
       setMessages(prev => [...prev, newAiMessage]);
       playAudio(response.audio);
@@ -242,12 +258,12 @@ export default function App(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, actionHistory, playAudio, soundEffects, initAudioContext]);
+  }, [isLoading, actionHistory, playAudio, soundEffects, initAudioContext, apiKey]);
 
   const handleUserMessage = useCallback(async (message: string) => {
     initAudioContext();
     soundEffects.playSend();
-    if (isLoading) return;
+    if (isLoading || !apiKey) return;
 
     setMessages(prev => [...prev, { id: Date.now().toString(), sender: MessageSender.USER, text: message }]);
     setIsLoading(true);
@@ -256,7 +272,7 @@ export default function App(): React.ReactElement {
     const action = isQuizAnswer ? ActionType.ANSWER_QUIZ : ActionType.ASK_QUESTION;
 
     try {
-        const response = await getAiResponse(action, labStateRef.current, actionHistory, message, currentQuiz ?? undefined);
+        const response = await getAiResponse(apiKey, action, labStateRef.current, actionHistory, message, currentQuiz ?? undefined);
         const newAiMessage = { id: `${Date.now()}-feedback`, sender: MessageSender.AI, text: response.explanation, audio: response.audio };
         setMessages(prev => [...prev, newAiMessage]);
         playAudio(response.audio);
@@ -273,7 +289,7 @@ export default function App(): React.ReactElement {
         }
         setIsLoading(false);
     }
-  }, [isLoading, currentQuiz, actionHistory, playAudio, soundEffects, initAudioContext]);
+  }, [isLoading, currentQuiz, actionHistory, playAudio, soundEffects, initAudioContext, apiKey]);
 
   const handleReset = useCallback(() => {
     initAudioContext();
@@ -284,8 +300,8 @@ export default function App(): React.ReactElement {
     loadInitialGreeting();
   }, [initAudioContext, soundEffects, loadInitialGreeting]);
 
-  if (!isApiKeySet) {
-    return <ApiKeySelectionScreen onSelect={handleSelectApiKey} isChecking={isCheckingApiKey} />;
+  if (!apiKey) {
+    return <ApiKeySelectionScreen onApiKeySet={setApiKey} />;
   }
 
   return (
