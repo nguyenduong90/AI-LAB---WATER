@@ -4,10 +4,14 @@ import { ActionType, LabState, Quiz } from '../types';
 const model = 'gemini-2.5-flash';
 const ttsModel = 'gemini-2.5-flash-preview-tts';
 
+// Fix: Use process.env.API_KEY to align with @google/genai guidelines and resolve the 'ImportMeta' type error.
 const getAiClient = () => {
-    // API key được cung cấp tự động bởi môi trường chạy thông qua process.env.API_KEY.
-    // Vui lòng đảm bảo bạn đã cấu hình biến môi trường này trong Vercel.
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        // This specific error message will be caught and displayed to the user.
+        throw new Error("API_KEY is not set in the environment variables.");
+    }
+    return new GoogleGenAI({ apiKey });
 };
 
 const quizBank = {

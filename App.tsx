@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { VirtualLab } from './components/VirtualLab';
 import { ActionPanel } from './components/ActionPanel';
@@ -65,7 +66,13 @@ export default function App(): React.ReactElement {
 
   const handleApiError = (error: any) => {
     console.error('An API error occurred:', error);
-    const errorMessage = 'Ôi, có lỗi kết nối với AI rồi. Con hãy thử tải lại trang nhé.';
+    let errorMessage = 'Ôi, có lỗi kết nối với AI rồi. Con hãy thử tải lại trang nhé.';
+
+    // Fix: Updated API key error check to look for "API_KEY" instead of "VITE_API_KEY"
+    // to match the change in geminiService.ts.
+    if (error instanceof Error && error.message.includes("API_KEY")) {
+        errorMessage = "Lỗi Cấu Hình: Không tìm thấy API Key. Vui lòng kiểm tra lại biến môi trường 'API_KEY' trên Vercel và triển khai lại.";
+    }
     
     // Avoid showing multiple generic error messages in a row
     if (messages.length > 0 && messages[messages.length - 1].text === errorMessage) {
