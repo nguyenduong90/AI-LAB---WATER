@@ -4,11 +4,32 @@ import { ActionType, LabState, Quiz } from '../types';
 const model = 'gemini-2.5-flash';
 const ttsModel = 'gemini-2.5-flash-preview-tts';
 
-const getAiClient = (apiKey: string) => {
-    if (!apiKey) {
-        throw new Error("API Key is missing.");
-    }
-    return new GoogleGenAI({ apiKey });
+const getAiClient = () => {
+    // API key được cung cấp tự động bởi môi trường chạy.
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
+
+const quizBank = {
+  [ActionType.HEAT_WATER]: [
+    { question: "Khi nước biến thành hơi, ta gọi đó là hiện tượng gì?", correctAnswerHint: "bay hơi" },
+    { question: "Để nước bay hơi nhanh hơn, chúng ta cần làm gì với nước?", correctAnswerHint: "đun nóng hoặc tăng nhiệt độ" },
+    { question: "Hơi nước có màu gì?", correctAnswerHint: "không màu" },
+  ],
+  [ActionType.ADD_ICE]: [
+    { question: "Khi hơi nước gặp lạnh và biến thành giọt nước, đó là hiện tượng gì?", correctAnswerHint: "ngưng tụ" },
+    { question: "Tại sao lại có những giọt nước đọng trên nắp cốc khi ta đặt đá lên trên?", correctAnswerHint: "do hơi nước ngưng tụ" },
+    { question: "Mưa được tạo ra nhờ hiện tượng nào chúng ta vừa học?", correctAnswerHint: "ngưng tụ" },
+  ],
+  [ActionType.DROP_ICE_IN_WATER]: [
+    { question: "Khi viên đá gặp nước nóng và biến mất, đó là hiện tượng gì?", correctAnswerHint: "tan chảy" },
+    { question: "Đá ở thể rắn hay thể lỏng?", correctAnswerHint: "thể rắn" },
+    { question: "Tại sao nước trong cốc lại nguội đi khi ta thả đá vào?", correctAnswerHint: "đá lấy nhiệt từ nước" },
+  ],
+  [ActionType.DISSOLVE_SALT]: [
+    { question: "Khi muối tan trong nước, ta gọi đó là hiện tượng gì?", correctAnswerHint: "hòa tan" },
+    { question: "Trong thí nghiệm hòa tan muối, đâu là chất tan?", correctAnswerHint: "muối" },
+    { question: "Làm thế nào để muối tan nhanh hơn trong nước?", correctAnswerHint: "khuấy đều hoặc đun nóng" },
+  ]
 };
 
 const responseSchema = {
@@ -20,8 +41,6 @@ const responseSchema = {
         },
         quiz: {
             type: Type.OBJECT,
-            // Fix: Removed `nullable: true` as it is not a supported property in the response schema.
-            // The optionality of the property is handled by not including it in the `required` array.
             description: "Một câu hỏi trắc nghiệm nhanh, nếu có.",
             properties: {
                 question: {
@@ -46,10 +65,10 @@ Mục tiêu là giúp các con hiểu bài một cách dễ dàng và thú vị.
 Tuyệt đối không sử dụng markdown.`;
 
 
-async function generateAudio(textToSpeak: string, apiKey: string): Promise<string | null> {
+async function generateAudio(textToSpeak: string): Promise<string | null> {
     if (!textToSpeak) return null;
     try {
-        const ai = getAiClient(apiKey);
+        const ai = getAiClient();
         const response = await ai.models.generateContent({
             model: ttsModel,
             contents: [{ parts: [{ text: textToSpeak }] }],
@@ -70,8 +89,8 @@ async function generateAudio(textToSpeak: string, apiKey: string): Promise<strin
     }
 }
 
-export async function getInitialGreeting(apiKey: string): Promise<{ text: string; audio: string | null }> {
-    const ai = getAiClient(apiKey);
+export async function getInitialGreeting(): Promise<{ text: string; audio: string | null }> {
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
         model,
         contents: "Hãy viết một lời chào mừng ngắn gọn (1 câu) để bắt đầu buổi thí nghiệm ảo.",
@@ -80,25 +99,32 @@ export async function getInitialGreeting(apiKey: string): Promise<{ text: string
         }
     });
     const text = response.text.trim();
-    const audio = await generateAudio(text, apiKey);
+    const audio = await generateAudio(text);
     return { text, audio };
 }
 
-function buildPrompt(action: ActionType, labState: LabState, actionHistory: ActionType[], userAnswer?: string, currentQuiz?: Quiz): string {
+function buildPrompt(action: ActionType, labState: LabState, actionHistory: ActionType[], usedQuizQuestions: string[], userAnswer?: string, currentQuiz?: Quiz): string {
     const previousActions = actionHistory.join(', ');
+    const usedQuestionsString = usedQuizQuestions.length > 0 ? `Các câu hỏi đã hỏi: "${usedQuizQuestions.join('", "')}".` : "Chưa có câu hỏi nào được hỏi.";
+
+    let basePrompt = '';
     
     switch (action) {
         case ActionType.HEAT_WATER:
-            return `Học sinh vừa chọn hành động "Đun nóng nước". Hãy giải thích hiện tượng "bay hơi" là gì khi nước được đun nóng. Sau đó, đặt một câu hỏi đơn giản để kiểm tra xem con có hiểu không.`;
+            basePrompt = `Học sinh vừa chọn hành động "Đun nóng nước". Hãy giải thích hiện tượng "bay hơi" là gì khi nước được đun nóng.`;
+            break;
         case ActionType.ADD_ICE:
             if (!labState.showVapor) {
                 return `Học sinh muốn "Đặt đá lên nắp cốc" nhưng chưa có hơi nước. Hãy nhẹ nhàng nhắc con cần đun nước để tạo ra hơi nước trước.`;
             }
-            return `Học sinh vừa "Đặt đá lên nắp cốc" khi có hơi nước nóng bốc lên. Hãy giải thích hiện tượng "ngưng tụ" là gì khi hơi nước gặp lạnh. Sau đó, đặt một câu hỏi đơn giản.`;
+            basePrompt = `Học sinh vừa "Đặt đá lên nắp cốc" khi có hơi nước nóng bốc lên. Hãy giải thích hiện tượng "ngưng tụ" là gì khi hơi nước gặp lạnh.`;
+            break;
         case ActionType.DROP_ICE_IN_WATER:
-            return `Học sinh vừa 'Thả viên đá vào nước nóng'. Hãy giải thích hiện tượng 'tan chảy' là gì khi đá (thể rắn) gặp nước nóng và tại sao nước nguội đi. Sau đó, đặt một câu hỏi đơn giản.`;
+            basePrompt = `Học sinh vừa 'Thả viên đá vào nước nóng'. Hãy giải thích hiện tượng 'tan chảy' là gì khi đá (thể rắn) gặp nước nóng và tại sao nước nguội đi.`;
+            break;
         case ActionType.DISSOLVE_SALT:
-            return `Học sinh vừa 'Hòa muối vào nước'. Hãy giải thích hiện tượng 'hòa tan' là gì. Giới thiệu ngắn gọn về 'chất tan' (muối) và 'dung môi' (nước). Sau đó, đặt một câu hỏi đơn giản.`;
+            basePrompt = `Học sinh vừa 'Hòa muối vào nước'. Hãy giải thích hiện tượng 'hòa tan' là gì. Giới thiệu ngắn gọn về 'chất tan' (muối) và 'dung môi' (nước).`;
+            break;
         case ActionType.ANSWER_QUIZ:
             return `Cô/Thầy đã hỏi con câu: "${currentQuiz?.question}". Con trả lời là: "${userAnswer}". Gợi ý câu trả lời đúng là về: "${currentQuiz?.correctAnswerHint}".
             Hãy nhận xét câu trả lời của con. Nếu đúng, hãy khen ngợi. Nếu sai, hãy động viên và giải thích lại một cách đơn giản. Chỉ đưa ra nhận xét, không hỏi thêm câu hỏi nào khác.`;
@@ -107,12 +133,20 @@ function buildPrompt(action: ActionType, labState: LabState, actionHistory: Acti
         default:
             return "Hãy đưa ra một lời gợi ý chung cho thí nghiệm.";
     }
+
+    // Append quiz request for relevant actions
+    if ([ActionType.HEAT_WATER, ActionType.ADD_ICE, ActionType.DROP_ICE_IN_WATER, ActionType.DISSOLVE_SALT].includes(action)) {
+        return `${basePrompt} Sau đó, hãy chọn MỘT câu hỏi hoàn toàn mới từ ngân hàng câu hỏi dưới đây để hỏi học sinh. ${usedQuestionsString}
+        Ngân hàng câu hỏi cho hành động này: ${JSON.stringify(quizBank[action as keyof typeof quizBank])}`;
+    }
+
+    return basePrompt;
 }
 
-export async function getAiResponse(apiKey: string, action: ActionType, labState: LabState, actionHistory: ActionType[], userAnswer?: string, currentQuiz?: Quiz) {
-    const prompt = buildPrompt(action, labState, actionHistory, userAnswer, currentQuiz);
+export async function getAiResponse(action: ActionType, labState: LabState, actionHistory: ActionType[], userAnswer?: string, currentQuiz?: Quiz, usedQuizQuestions: string[] = []) {
+    const prompt = buildPrompt(action, labState, actionHistory, usedQuizQuestions, userAnswer, currentQuiz);
 
-    const ai = getAiClient(apiKey);
+    const ai = getAiClient();
     const response = await ai.models.generateContent({
         model,
         contents: prompt,
@@ -133,7 +167,7 @@ export async function getAiResponse(apiKey: string, action: ActionType, labState
         
         // Combine explanation and question for a single audio generation
         const textToSpeak = quiz ? `${explanation} ${quiz.question}` : explanation;
-        const audio = await generateAudio(textToSpeak, apiKey);
+        const audio = await generateAudio(textToSpeak);
         
         return {
             explanation,
@@ -144,7 +178,7 @@ export async function getAiResponse(apiKey: string, action: ActionType, labState
         console.error("Failed to parse Gemini JSON response:", e);
         console.error("Raw response text:", response.text);
         const explanation = response.text || "Có lỗi xảy ra, con thử lại sau nhé.";
-        const audio = await generateAudio(explanation, apiKey);
+        const audio = await generateAudio(explanation);
         return {
             explanation,
             quiz: null,

@@ -149,8 +149,8 @@ export const VirtualLab: React.FC<VirtualLabProps> = ({ state }) => {
   const { isHeating, showVapor, isIceOnLid, showCondensation, isIceInWater, isSaltInWater } = state;
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-8">
-      <div className="relative w-[300px] h-[300px] sm:w-[400px] sm:h-[400px]">
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="relative w-full max-w-[300px] sm:max-w-[400px] aspect-square">
         {/* Table */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[120%] h-2 bg-yellow-700 rounded-md shadow-md"></div>
 

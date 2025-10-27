@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { VirtualLab } from './components/VirtualLab';
 import { ActionPanel } from './components/ActionPanel';
 import { AiAssistant } from './components/AiAssistant';
+import { AuthorInfoModal } from './components/AuthorInfoModal';
 import { getAiResponse, getInitialGreeting } from './services/geminiService';
 import { ActionType, LabState, AiMessage, Quiz, MessageSender } from './types';
 import { useSoundEffects } from './hooks/useSoundEffects';
@@ -45,84 +46,6 @@ const initialLabState: LabState = {
   isSaltInWater: false,
 };
 
-const ApiKeySelectionScreen: React.FC<{ onApiKeySet: (key: string) => void }> = ({ onApiKeySet }) => {
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim()) {
-      setError('Vui lòng nhập API Key.');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Test the key by making an initial, lightweight call.
-      await getInitialGreeting(inputValue);
-      onApiKeySet(inputValue);
-    } catch (err) {
-      console.error('API Key validation failed:', err);
-      setError('API Key không hợp lệ hoặc đã xảy ra lỗi mạng. Vui lòng kiểm tra lại Key và thử lại.');
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div className="bg-gradient-to-br from-blue-100 to-cyan-100 min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl p-8 max-w-lg text-center w-full">
-        <h1 className="text-3xl font-bold text-red-600 mb-4">Chào mừng đến với AI Lab!</h1>
-        <p className="text-gray-700 mb-4">
-          Để bắt đầu, vui lòng nhập Google AI API Key của bạn vào ô bên dưới.
-        </p>
-        <div className="mb-4">
-          <input
-            type="password"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Dán API Key của bạn vào đây"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-            autoComplete="off"
-          />
-        </div>
-        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-        <p className="text-gray-600 mb-6 text-sm">
-          Nếu chưa có API Key, bạn có thể 
-          <a 
-            href="https://aistudio.google.com/app/apikey" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 font-semibold hover:underline mx-1"
-          >
-            tạo một key mới tại đây
-          </a>.
-        </p>
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full px-8 py-4 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:bg-blue-400 disabled:cursor-wait"
-        >
-          {isLoading ? 'Đang xác thực...' : 'Bắt đầu Thí nghiệm'}
-        </button>
-        <p className="text-xs text-gray-500 mt-4">
-          Key của bạn sẽ chỉ được lưu trong trình duyệt cho phiên này.
-          <a
-            href="https://ai.google.dev/gemini-api/docs/billing"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline ml-1"
-          >
-            Tìm hiểu thêm về thanh toán.
-          </a>
-        </p>
-      </form>
-    </div>
-  );
-};
-
-
 // Fix: Changed return type from JSX.Element to React.ReactElement to resolve namespace issue.
 export default function App(): React.ReactElement {
   const [labState, setLabState] = useState<LabState>(initialLabState);
@@ -130,7 +53,9 @@ export default function App(): React.ReactElement {
   const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [actionHistory, setActionHistory] = useState<ActionType[]>([]);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [usedQuizQuestions, setUsedQuizQuestions] = useState<string[]>([]);
+  const [isAuthorModalOpen, setIsAuthorModalOpen] = useState(false);
+
 
   const labStateRef = useRef(labState);
   labStateRef.current = labState;
@@ -140,13 +65,7 @@ export default function App(): React.ReactElement {
 
   const handleApiError = (error: any) => {
     console.error('An API error occurred:', error);
-    const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
-    if (errorMessage.includes("api key not valid") || errorMessage.includes("permission denied") || errorMessage.includes("requested entity was not found")) {
-        setMessages(prev => [...prev, { id: 'api-key-error', sender: MessageSender.AI, text: 'API Key của bạn không hợp lệ hoặc đã hết hạn. Vui lòng nhập lại một Key khác để tiếp tục.' }]);
-        setApiKey(null);
-    } else {
-       setMessages(prev => [...prev, { id: Date.now().toString(), sender: MessageSender.AI, text: 'Ôi, có lỗi xảy ra rồi. Con thử lại nhé?' }]);
-    }
+    setMessages(prev => [...prev, { id: Date.now().toString(), sender: MessageSender.AI, text: 'Ôi, có lỗi kết nối với AI rồi. Con hãy thử tải lại trang nhé.' }]);
     setIsLoading(false);
   };
 
@@ -187,11 +106,10 @@ export default function App(): React.ReactElement {
   }, []);
 
   const loadInitialGreeting = useCallback(async () => {
-    if (!apiKey) return;
     setIsLoading(true);
     setMessages([]);
     try {
-      const { text, audio } = await getInitialGreeting(apiKey);
+      const { text, audio } = await getInitialGreeting();
       setMessages([{ id: 'init', sender: MessageSender.AI, text, audio }]);
       playAudio(audio);
     } catch (error) {
@@ -200,13 +118,12 @@ export default function App(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [playAudio, apiKey]);
+  }, [playAudio]);
 
   useEffect(() => {
-    if (apiKey) {
-        loadInitialGreeting();
-    }
-  }, [apiKey]);
+    loadInitialGreeting();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   useEffect(() => {
     // Play sound on new AI message, but not the initial greeting
@@ -222,7 +139,7 @@ export default function App(): React.ReactElement {
   const handleAction = useCallback(async (action: ActionType) => {
     initAudioContext();
     soundEffects.playClick();
-    if (isLoading || !apiKey) return;
+    if (isLoading) return;
     setIsLoading(true);
     setActionHistory(prev => [...prev, action]);
 
@@ -245,25 +162,26 @@ export default function App(): React.ReactElement {
     }
     
     try {
-      const response = await getAiResponse(apiKey, action, labStateRef.current, actionHistory);
+      const response = await getAiResponse(action, labStateRef.current, actionHistory, undefined, undefined, usedQuizQuestions);
       const newAiMessage = { id: Date.now().toString(), sender: MessageSender.AI, text: response.explanation, audio: response.audio };
       setMessages(prev => [...prev, newAiMessage]);
       playAudio(response.audio);
 
       if (response.quiz) {
         setCurrentQuiz(response.quiz);
+        setUsedQuizQuestions(prev => [...prev, response.quiz!.question]);
       }
     } catch (error) {
        handleApiError(error);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, actionHistory, playAudio, soundEffects, initAudioContext, apiKey]);
+  }, [isLoading, actionHistory, playAudio, soundEffects, initAudioContext, usedQuizQuestions]);
 
   const handleUserMessage = useCallback(async (message: string) => {
     initAudioContext();
     soundEffects.playSend();
-    if (isLoading || !apiKey) return;
+    if (isLoading) return;
 
     setMessages(prev => [...prev, { id: Date.now().toString(), sender: MessageSender.USER, text: message }]);
     setIsLoading(true);
@@ -272,13 +190,14 @@ export default function App(): React.ReactElement {
     const action = isQuizAnswer ? ActionType.ANSWER_QUIZ : ActionType.ASK_QUESTION;
 
     try {
-        const response = await getAiResponse(apiKey, action, labStateRef.current, actionHistory, message, currentQuiz ?? undefined);
+        const response = await getAiResponse(action, labStateRef.current, actionHistory, message, currentQuiz ?? undefined, usedQuizQuestions);
         const newAiMessage = { id: `${Date.now()}-feedback`, sender: MessageSender.AI, text: response.explanation, audio: response.audio };
         setMessages(prev => [...prev, newAiMessage]);
         playAudio(response.audio);
 
         if (response.quiz) {
             setCurrentQuiz(response.quiz);
+            setUsedQuizQuestions(prev => [...prev, response.quiz!.question]);
         }
 
     } catch (error) {
@@ -289,7 +208,7 @@ export default function App(): React.ReactElement {
         }
         setIsLoading(false);
     }
-  }, [isLoading, currentQuiz, actionHistory, playAudio, soundEffects, initAudioContext, apiKey]);
+  }, [isLoading, currentQuiz, actionHistory, playAudio, soundEffects, initAudioContext, usedQuizQuestions]);
 
   const handleReset = useCallback(() => {
     initAudioContext();
@@ -297,30 +216,28 @@ export default function App(): React.ReactElement {
     setLabState(initialLabState);
     setCurrentQuiz(null);
     setActionHistory([]);
+    setUsedQuizQuestions([]);
     loadInitialGreeting();
   }, [initAudioContext, soundEffects, loadInitialGreeting]);
 
-  if (!apiKey) {
-    return <ApiKeySelectionScreen onApiKeySet={setApiKey} />;
-  }
-
   return (
     <div className="bg-gradient-to-br from-blue-100 to-cyan-100 min-h-screen text-gray-800 p-4 sm:p-6 lg:p-8 flex flex-col">
-      <header className="relative text-center mb-6 pt-8 sm:pt-0">
-         <div className="absolute top-0 left-0">
-            <h2 className="text-base font-semibold text-gray-700">Trường Tiểu Học Phước Mỹ Trung</h2>
-        </div>
-        <div className="absolute top-0 right-0">
-            <h2 className="text-base font-semibold text-gray-700">Ứng dụng AI Trong Giảng Dạy</h2>
+      <header className="text-center mb-6">
+         <div className="hidden sm:flex justify-between items-center text-sm font-semibold text-gray-700 mb-4">
+            <span>Trường Tiểu Học Phước Mỹ Trung</span>
+            <span>Ứng dụng AI Trong Giảng Dạy</span>
         </div>
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-red-600">AI Lab</h1>
-        <p className="text-lg sm:text-xl font-bold text-amber-600">Phòng Thí Nghiệm Ảo Các Hiện Tượng Khoa Học Lớp 4</p>
+        <div>
+          <p className="text-lg sm:text-xl font-bold text-amber-600">Phòng Thí Nghiệm Ảo Một Số Hiện Tượng Của Nước</p>
+          <p className="text-sm sm:text-base text-amber-600 mt-1">(Trích Sách Giáo Khoa Môn Khoa Học Lớp 4)</p>
+        </div>
       </header>
-      <main className="flex-grow grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
-        <div className="lg:col-span-3 bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg p-4 flex flex-col items-center justify-center relative overflow-hidden border border-blue-200">
+      <main className="flex-grow grid grid-cols-1 md:grid-cols-5 gap-6 md:gap-8">
+        <div className="md:col-span-3 bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg p-2 sm:p-4 flex flex-col items-center justify-center relative overflow-hidden border border-blue-200">
           <VirtualLab state={labState} />
         </div>
-        <div className="lg:col-span-2 bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg p-4 flex flex-col border border-blue-200">
+        <div className="md:col-span-2 bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg p-4 flex flex-col border border-blue-200">
             <AiAssistant 
               messages={messages}
               quiz={currentQuiz}
@@ -328,16 +245,23 @@ export default function App(): React.ReactElement {
               onSendMessage={handleUserMessage}
             />
             <ActionPanel onAction={handleAction} labState={labState} isLoading={isLoading} />
-            <div className="text-center mt-4">
+            <div className="text-center mt-4 space-y-3">
               <button 
                 onClick={handleReset}
-                className="px-8 py-3 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                className="w-full px-8 py-3 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300"
               >
                 Làm Lại
+              </button>
+               <button 
+                onClick={() => setIsAuthorModalOpen(true)}
+                className="w-full px-8 py-3 bg-yellow-800 text-white font-bold rounded-full shadow-lg hover:bg-yellow-900 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-yellow-400"
+              >
+                Tác Giả
               </button>
             </div>
         </div>
       </main>
+      <AuthorInfoModal isOpen={isAuthorModalOpen} onClose={() => setIsAuthorModalOpen(false)} />
     </div>
   );
 }

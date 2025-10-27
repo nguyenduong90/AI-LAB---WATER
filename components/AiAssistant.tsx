@@ -40,7 +40,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ messages, quiz, isLoad
   };
 
   return (
-    <div className="flex-grow flex flex-col h-full min-h-[300px] max-h-[70vh] lg:max-h-full">
+    <div className="flex-grow flex flex-col h-full min-h-[300px] max-h-[60vh] md:max-h-full">
         <h2 className="text-xl font-bold text-center mb-4 text-blue-800 p-2">Trợ lý AI</h2>
         <div className="flex-grow bg-blue-50/50 rounded-lg p-4 overflow-y-auto mb-4 border border-blue-200/80 shadow-inner">
             <div className="space-y-4">
