@@ -4,6 +4,7 @@ import { VirtualLab } from './components/VirtualLab';
 import { ActionPanel } from './components/ActionPanel';
 import { AiAssistant } from './components/AiAssistant';
 import { AuthorInfoModal } from './components/AuthorInfoModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
 import { getAiResponse, getInitialGreeting } from './services/geminiService';
 import { ActionType, LabState, AiMessage, Quiz, MessageSender } from './types';
 import { useSoundEffects } from './hooks/useSoundEffects';
@@ -47,16 +48,18 @@ const initialLabState: LabState = {
   isSaltInWater: false,
 };
 
-// Fix: Changed return type from JSX.Element to React.ReactElement to resolve namespace issue.
 export default function App(): React.ReactElement {
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+
   const [labState, setLabState] = useState<LabState>(initialLabState);
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [actionHistory, setActionHistory] = useState<ActionType[]>([]);
   const [usedQuizQuestions, setUsedQuizQuestions] = useState<string[]>([]);
   const [isAuthorModalOpen, setIsAuthorModalOpen] = useState(false);
-
 
   const labStateRef = useRef(labState);
   labStateRef.current = labState;
@@ -66,15 +69,17 @@ export default function App(): React.ReactElement {
 
   const handleApiError = (error: any) => {
     console.error('An API error occurred:', error);
-    let errorMessage = 'Ôi, có lỗi kết nối với AI rồi. Con hãy thử tải lại trang nhé.';
-
-    // Fix: Updated API key error check to look for "API_KEY" instead of "VITE_API_KEY"
-    // to match the change in geminiService.ts.
-    if (error instanceof Error && error.message.includes("API_KEY")) {
-        errorMessage = "Lỗi Cấu Hình: Không tìm thấy API Key. Vui lòng kiểm tra lại biến môi trường 'API_KEY' trên Vercel và triển khai lại.";
+    // Check for specific invalid API key error messages from the Gemini API
+    if (error instanceof Error && (error.message.includes("API key not valid") || error.message.includes("API_KEY_INVALID"))) {
+        localStorage.removeItem('gemini-api-key');
+        setApiKey(null);
+        setApiKeyError("API Key không hợp lệ. Vui lòng kiểm tra và nhập lại.");
+        setIsApiKeyModalOpen(true);
+        setIsLoading(false);
+        return;
     }
     
-    // Avoid showing multiple generic error messages in a row
+    let errorMessage = 'Ôi, có lỗi kết nối với AI rồi. Con hãy thử tải lại trang nhé.';
     if (messages.length > 0 && messages[messages.length - 1].text === errorMessage) {
         setIsLoading(false);
         return;
@@ -101,9 +106,7 @@ export default function App(): React.ReactElement {
   }, []);
 
   const playAudio = useCallback(async (base64Audio: string | null | undefined) => {
-    if (!base64Audio || !audioContextRef.current) {
-        return;
-    }
+    if (!base64Audio || !audioContextRef.current) return;
     try {
         if (audioContextRef.current.state === 'suspended') {
             await audioContextRef.current.resume();
@@ -120,28 +123,33 @@ export default function App(): React.ReactElement {
     }
   }, []);
 
-  const loadInitialGreeting = useCallback(async () => {
+  const loadInitialGreeting = useCallback(async (key: string) => {
     setIsLoading(true);
     setMessages([]);
     try {
-      const { text, audio } = await getInitialGreeting();
+      const { text, audio } = await getInitialGreeting(key);
       setMessages([{ id: 'init', sender: MessageSender.AI, text, audio }]);
       playAudio(audio);
     } catch (error) {
-      console.error('Failed to get initial greeting:', error);
       handleApiError(error);
     } finally {
       setIsLoading(false);
     }
   }, [playAudio]);
+  
+  // Check for API Key on initial mount
+  useEffect(() => {
+    const storedKey = localStorage.getItem('gemini-api-key');
+    if (storedKey) {
+      setApiKey(storedKey);
+      loadInitialGreeting(storedKey);
+    } else {
+      setIsApiKeyModalOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    loadInitialGreeting();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  
-  useEffect(() => {
-    // Play sound on new AI message, but not the initial greeting or specific errors
     if (messages.length > prevMessagesLength.current) {
         const lastMessage = messages[messages.length - 1];
         if (lastMessage.sender === MessageSender.AI && lastMessage.id !== 'init' && !lastMessage.id.startsWith('err-')) {
@@ -150,15 +158,27 @@ export default function App(): React.ReactElement {
     }
     prevMessagesLength.current = messages.length;
   }, [messages, soundEffects]);
+  
+  const handleApiKeySave = (key: string) => {
+    if (!key.trim()) {
+        setApiKeyError('Vui lòng nhập API Key.');
+        return;
+    }
+    setApiKey(key);
+    localStorage.setItem('gemini-api-key', key);
+    setIsApiKeyModalOpen(false);
+    setApiKeyError(null);
+    loadInitialGreeting(key);
+  };
 
   const handleAction = useCallback(async (action: ActionType) => {
+    if (!apiKey) { setIsApiKeyModalOpen(true); return; }
     initAudioContext();
     soundEffects.playClick();
     if (isLoading) return;
     setIsLoading(true);
     setActionHistory(prev => [...prev, action]);
 
-    // Optimistically update UI
     if (action === ActionType.HEAT_WATER) {
       setLabState(s => ({ ...s, isHeating: true }));
       setTimeout(() => setLabState(s => ({ ...s, showVapor: true })), 2000);
@@ -169,7 +189,6 @@ export default function App(): React.ReactElement {
     }
      if (action === ActionType.DROP_ICE_IN_WATER) {
       setLabState(s => ({ ...s, isIceInWater: true }));
-      // Simulate water cooling down
       setTimeout(() => setLabState(s => ({ ...s, showVapor: false, isHeating: false })), 5000);
     }
     if (action === ActionType.DISSOLVE_SALT) {
@@ -177,7 +196,7 @@ export default function App(): React.ReactElement {
     }
     
     try {
-      const response = await getAiResponse(action, labStateRef.current, actionHistory, undefined, undefined, usedQuizQuestions);
+      const response = await getAiResponse(action, labStateRef.current, actionHistory, undefined, undefined, usedQuizQuestions, apiKey);
       const newAiMessage = { id: Date.now().toString(), sender: MessageSender.AI, text: response.explanation, audio: response.audio };
       setMessages(prev => [...prev, newAiMessage]);
       playAudio(response.audio);
@@ -191,9 +210,10 @@ export default function App(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, actionHistory, playAudio, soundEffects, initAudioContext, usedQuizQuestions]);
+  }, [isLoading, actionHistory, playAudio, soundEffects, initAudioContext, usedQuizQuestions, apiKey]);
 
   const handleUserMessage = useCallback(async (message: string) => {
+    if (!apiKey) { setIsApiKeyModalOpen(true); return; }
     initAudioContext();
     soundEffects.playSend();
     if (isLoading) return;
@@ -205,7 +225,7 @@ export default function App(): React.ReactElement {
     const action = isQuizAnswer ? ActionType.ANSWER_QUIZ : ActionType.ASK_QUESTION;
 
     try {
-        const response = await getAiResponse(action, labStateRef.current, actionHistory, message, currentQuiz ?? undefined, usedQuizQuestions);
+        const response = await getAiResponse(action, labStateRef.current, actionHistory, message, currentQuiz ?? undefined, usedQuizQuestions, apiKey);
         const newAiMessage = { id: `${Date.now()}-feedback`, sender: MessageSender.AI, text: response.explanation, audio: response.audio };
         setMessages(prev => [...prev, newAiMessage]);
         playAudio(response.audio);
@@ -223,60 +243,64 @@ export default function App(): React.ReactElement {
         }
         setIsLoading(false);
     }
-  }, [isLoading, currentQuiz, actionHistory, playAudio, soundEffects, initAudioContext, usedQuizQuestions]);
+  }, [isLoading, currentQuiz, actionHistory, playAudio, soundEffects, initAudioContext, usedQuizQuestions, apiKey]);
 
   const handleReset = useCallback(() => {
+    if (!apiKey) { setIsApiKeyModalOpen(true); return; }
     initAudioContext();
     soundEffects.playClick();
     setLabState(initialLabState);
     setCurrentQuiz(null);
     setActionHistory([]);
     setUsedQuizQuestions([]);
-    loadInitialGreeting();
-  }, [initAudioContext, soundEffects, loadInitialGreeting]);
+    loadInitialGreeting(apiKey);
+  }, [initAudioContext, soundEffects, loadInitialGreeting, apiKey]);
 
   return (
-    <div className="bg-gradient-to-br from-blue-100 to-cyan-100 min-h-screen text-gray-800 p-4 sm:p-6 lg:p-8 flex flex-col">
-      <header className="text-center mb-6">
-         <div className="hidden sm:flex justify-between items-center text-sm font-semibold text-gray-700 mb-4">
-            <span>Trường Tiểu Học Phước Mỹ Trung</span>
-            <span>Ứng dụng AI Trong Giảng Dạy</span>
-        </div>
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-red-600">AI Lab</h1>
-        <div>
-          <p className="text-lg sm:text-xl font-bold text-amber-600">Phòng Thí Nghiệm Ảo Một Số Hiện Tượng Của Nước</p>
-          <p className="text-sm sm:text-base text-amber-600 mt-1">(Trích Sách Giáo Khoa Môn Khoa Học Lớp 4)</p>
-        </div>
-      </header>
-      <main className="flex-grow grid grid-cols-1 md:grid-cols-5 gap-6 md:gap-8">
-        <div className="md:col-span-3 bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg p-2 sm:p-4 flex flex-col items-center justify-center relative overflow-hidden border border-blue-200">
-          <VirtualLab state={labState} />
-        </div>
-        <div className="md:col-span-2 bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg p-4 flex flex-col border border-blue-200">
-            <AiAssistant 
-              messages={messages}
-              quiz={currentQuiz}
-              isLoading={isLoading}
-              onSendMessage={handleUserMessage}
-            />
-            <ActionPanel onAction={handleAction} labState={labState} isLoading={isLoading} />
-            <div className="text-center mt-4 space-y-3">
-              <button 
-                onClick={handleReset}
-                className="w-full px-8 py-3 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300"
-              >
-                Làm Lại
-              </button>
-               <button 
-                onClick={() => setIsAuthorModalOpen(true)}
-                className="w-full px-8 py-3 bg-yellow-800 text-white font-bold rounded-full shadow-lg hover:bg-yellow-900 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-yellow-400"
-              >
-                Tác Giả
-              </button>
-            </div>
-        </div>
-      </main>
-      <AuthorInfoModal isOpen={isAuthorModalOpen} onClose={() => setIsAuthorModalOpen(false)} />
-    </div>
+    <>
+      <ApiKeyModal isOpen={isApiKeyModalOpen} error={apiKeyError} onSave={handleApiKeySave} />
+      <div className={`bg-gradient-to-br from-blue-100 to-cyan-100 min-h-screen text-gray-800 p-4 sm:p-6 lg:p-8 flex flex-col ${isApiKeyModalOpen ? 'blur-sm pointer-events-none' : ''}`}>
+        <header className="text-center mb-6">
+           <div className="hidden sm:flex justify-between items-center text-sm font-semibold text-gray-700 mb-4">
+              <span>Trường Tiểu Học Phước Mỹ Trung</span>
+              <span>Ứng dụng AI Trong Giảng Dạy</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-red-600">AI Lab</h1>
+          <div>
+            <p className="text-lg sm:text-xl font-bold text-amber-600">Phòng Thí Nghiệm Ảo Một Số Hiện Tượng Của Nước</p>
+            <p className="text-sm sm:text-base text-amber-600 mt-1">(Trích Sách Giáo Khoa Môn Khoa Học Lớp 4)</p>
+          </div>
+        </header>
+        <main className="flex-grow grid grid-cols-1 md:grid-cols-5 gap-6 md:gap-8">
+          <div className="md:col-span-3 bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg p-2 sm:p-4 flex flex-col items-center justify-center relative overflow-hidden border border-blue-200">
+            <VirtualLab state={labState} />
+          </div>
+          <div className="md:col-span-2 bg-white/60 backdrop-blur-sm rounded-2xl shadow-lg p-4 flex flex-col border border-blue-200">
+              <AiAssistant 
+                messages={messages}
+                quiz={currentQuiz}
+                isLoading={isLoading}
+                onSendMessage={handleUserMessage}
+              />
+              <ActionPanel onAction={handleAction} labState={labState} isLoading={isLoading} />
+              <div className="text-center mt-4 space-y-3">
+                <button 
+                  onClick={handleReset}
+                  className="w-full px-8 py-3 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                >
+                  Làm Lại
+                </button>
+                 <button 
+                  onClick={() => setIsAuthorModalOpen(true)}
+                  className="w-full px-8 py-3 bg-yellow-800 text-white font-bold rounded-full shadow-lg hover:bg-yellow-900 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-yellow-400"
+                >
+                  Tác Giả
+                </button>
+              </div>
+          </div>
+        </main>
+        <AuthorInfoModal isOpen={isAuthorModalOpen} onClose={() => setIsAuthorModalOpen(false)} />
+      </div>
+    </>
   );
 }
