@@ -65,7 +65,15 @@ export default function App(): React.ReactElement {
 
   const handleApiError = (error: any) => {
     console.error('An API error occurred:', error);
-    setMessages(prev => [...prev, { id: Date.now().toString(), sender: MessageSender.AI, text: 'Ôi, có lỗi kết nối với AI rồi. Con hãy thử tải lại trang nhé.' }]);
+    const errorMessage = 'Ôi, có lỗi kết nối với AI rồi. Con hãy thử tải lại trang nhé.';
+    
+    // Avoid showing multiple generic error messages in a row
+    if (messages.length > 0 && messages[messages.length - 1].text === errorMessage) {
+        setIsLoading(false);
+        return;
+    }
+
+    setMessages(prev => [...prev, { id: `err-${Date.now()}`, sender: MessageSender.AI, text: errorMessage }]);
     setIsLoading(false);
   };
 
@@ -126,10 +134,10 @@ export default function App(): React.ReactElement {
   }, []);
   
   useEffect(() => {
-    // Play sound on new AI message, but not the initial greeting
+    // Play sound on new AI message, but not the initial greeting or specific errors
     if (messages.length > prevMessagesLength.current) {
         const lastMessage = messages[messages.length - 1];
-        if (lastMessage.sender === MessageSender.AI && lastMessage.id !== 'init' && lastMessage.id !== 'api-key-error') {
+        if (lastMessage.sender === MessageSender.AI && lastMessage.id !== 'init' && !lastMessage.id.startsWith('err-')) {
             soundEffects.playReceive();
         }
     }

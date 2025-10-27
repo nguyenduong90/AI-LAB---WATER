@@ -5,7 +5,8 @@ const model = 'gemini-2.5-flash';
 const ttsModel = 'gemini-2.5-flash-preview-tts';
 
 const getAiClient = () => {
-    // API key được cung cấp tự động bởi môi trường chạy.
+    // API key được cung cấp tự động bởi môi trường chạy thông qua process.env.API_KEY.
+    // Vui lòng đảm bảo bạn đã cấu hình biến môi trường này trong Vercel.
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
