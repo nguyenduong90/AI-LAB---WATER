@@ -126,7 +126,7 @@ function buildPrompt(action: ActionType, labState: LabState, actionHistory: Acti
             basePrompt = `Học sinh vừa 'Thả viên đá vào nước nóng'. Hãy giải thích hiện tượng 'tan chảy' là gì khi đá (thể rắn) gặp nước nóng và tại sao nước nguội đi.`;
             break;
         case ActionType.DISSOLVE_SALT:
-            basePrompt = `Học sinh vừa 'Hòa muối vào nước'. Hãy giải thích hiện tượng 'hòa tan' là gì. Giới thiệu ngắn gọn về 'chất tan' (muối) và 'dung môi' (nước).`;
+            basePrompt = `Học sinh vừa 'Thêm muối vào nước'. Lượng muối hiện tại là ${labState.saltLevel * 10}%. Hãy giải thích hiện tượng 'hòa tan'. Dựa vào độ mặn, hãy nhận xét về trạng thái của nước. Ví dụ: nếu muối ít thì nói 'Nước bây giờ hơi mặn rồi đó con.', nếu muối nhiều thì nói 'Nước mặn hơn nữa rồi!' hoặc 'Bây giờ nước rất mặn!'.`;
             break;
         case ActionType.ANSWER_QUIZ:
             return `Cô/Thầy đã hỏi con câu: "${currentQuiz?.question}". Con trả lời là: "${userAnswer}". Gợi ý câu trả lời đúng là về: "${currentQuiz?.correctAnswerHint}".

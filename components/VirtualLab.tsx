@@ -8,17 +8,18 @@ interface VirtualLabProps {
 }
 
 const VaporParticle: React.FC<{ index: number }> = ({ index }) => {
-  const duration = 2 + Math.random() * 2; // 2s to 4s
-  const delay = Math.random() * 2; // 0s to 2s
+  // Slower, higher, more prominent vapor
+  const duration = 3 + Math.random() * 3; // 3s to 6s
+  const delay = Math.random() * 3; // 0s to 3s
   const xStart = 45 + Math.random() * 10; // %
-  const xEnd = 30 + Math.random() * 40; // %
+  const xEnd = 25 + Math.random() * 50; // % wider spread
 
   return (
     <div
       className="absolute bottom-[48%] rounded-full bg-blue-200/80 opacity-0"
       style={{
-        width: `${5 + Math.random() * 5}px`,
-        height: `${5 + Math.random() * 5}px`,
+        width: `${6 + Math.random() * 6}px`, // bigger particles
+        height: `${6 + Math.random() * 6}px`,
         left: `${xStart}%`,
         animation: `vapor-rise ${duration}s ease-in ${delay}s infinite`,
         animationName: `vapor-rise-${index}`,
@@ -32,10 +33,10 @@ const VaporParticle: React.FC<{ index: number }> = ({ index }) => {
               left: ${xStart}%;
             }
             20% {
-              opacity: 0.7;
+              opacity: 0.9;
             }
             100% {
-              transform: translateY(-120px) scale(1.5);
+              transform: translateY(-200px) scale(2.5); // rise higher
               opacity: 0;
               left: ${xEnd}%;
             }
@@ -85,16 +86,18 @@ const SmokeParticle: React.FC<{ index: number }> = ({ index }) => {
 
 
 const CondensationDroplet: React.FC<{ index: number }> = ({ index }) => {
-  const duration = 4 + Math.random() * 5; // Randomize duration 4s to 9s
-  const delay = Math.random() * 5; // 0s to 5s
+  // Slower, bigger, more noticeable drip
+  const duration = 6 + Math.random() * 5; // Slower: 6s to 11s
+  const delay = Math.random() * 6; // Wider delay range
   const xPos = 10 + Math.random() * 80; // %
+  const size = 3 + Math.random() * 4; // Bigger: 3px to 7px
   
   return (
     <div
       className="absolute top-0 rounded-full bg-blue-400/90 opacity-0"
       style={{
-        width: `${2 + Math.random() * 2}px`,
-        height: `${2 + Math.random() * 2}px`,
+        width: `${size}px`,
+        height: `${size}px`,
         left: `${xPos}%`,
         animation: `condense-drip ${duration}s ease-in-out ${delay}s infinite`
       }}
@@ -104,16 +107,19 @@ const CondensationDroplet: React.FC<{ index: number }> = ({ index }) => {
 
 const IceCubeInWater: React.FC = () => {
     return (
+        // Slower, more gradual melting
         <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-8 h-8 bg-cyan-200/80 rounded-md border-2 border-cyan-300 animate-drop-and-melt">
             <style>{`
                 @keyframes drop-and-melt {
-                    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
-                    20% { transform: translateY(80px) rotate(45deg); opacity: 1; }
-                    30% { transform: translateY(75px) rotate(45deg) scale(1); opacity: 1; }
+                    0% { transform: translateY(0) rotate(0deg) scale(1.2); opacity: 1; }
+                    15% { transform: translateY(80px) rotate(45deg) scale(1.2); opacity: 1; }
+                    20% { transform: translateY(75px) rotate(40deg) scale(1.2); opacity: 1; }
+                    50% { transform: translateY(80px) rotate(60deg) scale(0.9); opacity: 0.9; }
+                    80% { transform: translateY(82px) rotate(80deg) scale(0.5); opacity: 0.6; }
                     100% { transform: translateY(85px) rotate(90deg) scale(0); opacity: 0; }
                 }
                 .animate-drop-and-melt {
-                    animation: drop-and-melt 5s ease-in-out forwards;
+                    animation: drop-and-melt 10s ease-in-out forwards;
                 }
             `}</style>
         </div>
@@ -146,11 +152,26 @@ const SaltParticleInWater: React.FC<{index: number}> = ({index}) => {
 }
 
 export const VirtualLab: React.FC<VirtualLabProps> = ({ state }) => {
-  const { isHeating, showVapor, isIceOnLid, showCondensation, isIceInWater, isSaltInWater } = state;
+  const { isHeating, showVapor, isIceOnLid, showCondensation, isIceInWater, saltLevel } = state;
+
+  const getWaterStateText = (level: number) => {
+    if (level === 0) return 'Bình thường';
+    if (level <= 4) return 'Hơi mặn';
+    if (level <= 7) return 'Mặn vừa';
+    return 'Rất mặn';
+  }
 
   return (
     <div className="w-full h-full flex items-center justify-center">
       <div className="relative w-full max-w-[300px] sm:max-w-[400px] aspect-square">
+        {/* Salt Status Display - conditional */}
+        {saltLevel > 0 && (
+          <div className="absolute top-0 left-0 text-left text-sm text-blue-900 bg-white/60 p-2 rounded-lg shadow-md border border-blue-100 z-10">
+              <p><strong>Lượng muối:</strong> {saltLevel * 10}%</p>
+              <p><strong>Trạng thái nước:</strong> {getWaterStateText(saltLevel)}</p>
+          </div>
+        )}
+
         {/* Table */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[120%] h-2 bg-yellow-700 rounded-md shadow-md"></div>
 
@@ -163,14 +184,19 @@ export const VirtualLab: React.FC<VirtualLabProps> = ({ state }) => {
             <div className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-1/2 bg-blue-400 rounded-b-md transition-all duration-1000 ${isHeating ? 'animate-boil' : ''}`}>
               <div className="w-full h-full bg-blue-500/20 relative overflow-hidden">
                 {isIceInWater && <IceCubeInWater />}
-                {isSaltInWater && Array.from({ length: 30 }).map((_, i) => <SaltParticleInWater key={i} index={i} />)}
+                {/* Re-trigger salt animation on saltLevel change */}
+                {saltLevel > 0 && (
+                    <div key={saltLevel}>
+                        {Array.from({ length: 30 }).map((_, i) => <SaltParticleInWater key={i} index={i} />)}
+                    </div>
+                )}
               </div>
             </div>
             
             {/* Smoke when heating starts */}
             {isHeating && !showVapor && Array.from({ length: 20 }).map((_, i) => <SmokeParticle key={i} index={i} />)}
             {/* Vapor */}
-            {showVapor && Array.from({ length: 40 }).map((_, i) => <VaporParticle key={i} index={i} />)}
+            {showVapor && Array.from({ length: 80 }).map((_, i) => <VaporParticle key={i} index={i} />)}
             
             {/* Lid */}
             <div className="absolute top-[-10px] left-1/2 -translate-x-1/2 w-[105%] h-5 bg-gray-300 border-2 border-gray-400 rounded-md">
@@ -184,7 +210,7 @@ export const VirtualLab: React.FC<VirtualLabProps> = ({ state }) => {
                 )}
                 {/* Condensation Container */}
                 <div className="absolute bottom-[-16px] left-1/2 -translate-x-1/2 w-full h-4">
-                  {showCondensation && Array.from({ length: 20 }).map((_, i) => <CondensationDroplet key={i} index={i}/>)}
+                  {showCondensation && Array.from({ length: 25 }).map((_, i) => <CondensationDroplet key={i} index={i}/>)}
                 </div>
             </div>
           </div>
@@ -192,14 +218,15 @@ export const VirtualLab: React.FC<VirtualLabProps> = ({ state }) => {
 
         {/* Heater */}
         <div className="absolute bottom-[5%] left-1/2 -translate-x-1/2 w-52 h-10 flex flex-col items-center">
+            {/* Removed firewood */}
             <div className="w-full h-2 bg-gray-600 rounded-full"></div>
             <div className="w-2 h-4 bg-gray-500"></div>
-             {/* Flames */}
+             {/* Flames - bigger and more intense */}
             {isHeating && (
-                <div className="absolute -bottom-8 w-32 h-16 flex justify-around">
-                    <div className="w-8 h-12 bg-orange-400 rounded-t-full animate-flame"></div>
-                    <div className="w-8 h-16 bg-yellow-400 rounded-t-full animate-flame animation-delay-200"></div>
-                    <div className="w-8 h-12 bg-orange-400 rounded-t-full animate-flame animation-delay-400"></div>
+                <div className="absolute -bottom-10 w-40 h-20 flex justify-around">
+                    <div className="w-12 h-20 bg-orange-400 rounded-t-full animate-flame"></div>
+                    <div className="w-12 h-24 bg-yellow-400 rounded-t-full animate-flame animation-delay-200"></div>
+                    <div className="w-12 h-20 bg-orange-400 rounded-t-full animate-flame animation-delay-400"></div>
                 </div>
             )}
         </div>
@@ -214,7 +241,7 @@ export const VirtualLab: React.FC<VirtualLabProps> = ({ state }) => {
 
             @keyframes flame {
                 0%, 100% { transform: scaleY(1) translateY(0); opacity: 1; }
-                50% { transform: scaleY(1.2) translateY(-5px); opacity: 0.8; }
+                50% { transform: scaleY(1.2) translateY(-10px); opacity: 0.8; }
             }
             .animate-flame { animation: flame 0.3s infinite ease-in-out; }
             .animation-delay-200 { animation-delay: 0.2s; }
@@ -223,8 +250,8 @@ export const VirtualLab: React.FC<VirtualLabProps> = ({ state }) => {
             @keyframes condense-drip {
                 0% { opacity: 0; transform: translateY(0) scale(0.5); }
                 20% { opacity: 1; transform: translateY(0) scale(1); }
-                60% { opacity: 1; transform: translateY(0) scale(1.8); }
-                100% { opacity: 0; transform: translateY(25px) scale(1.2); }
+                60% { opacity: 1; transform: translateY(0) scale(2.2); } /* Swells bigger */
+                100% { opacity: 0; transform: translateY(100px) scale(1.5); } /* Falls further */
             }
         `}</style>
       </div>

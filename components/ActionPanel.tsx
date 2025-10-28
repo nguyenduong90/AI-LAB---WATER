@@ -24,9 +24,9 @@ export const ActionPanel: React.FC<ActionPanelProps> = ({ onAction, labState, is
     },
      { 
       type: ActionType.DISSOLVE_SALT, 
-      label: 'Hòa muối vào nước', 
+      label: 'Thêm muối', 
       icon: <SaltIcon />,
-      disabled: labState.isHeating || labState.isSaltInWater || labState.isIceInWater || isLoading,
+      disabled: labState.isHeating || labState.isIceInWater || labState.saltLevel >= 10 || isLoading,
       color: 'bg-green-500 hover:bg-green-600',
     },
     { 

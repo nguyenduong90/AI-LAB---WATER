@@ -46,6 +46,7 @@ const initialLabState: LabState = {
   showCondensation: false,
   isIceInWater: false,
   isSaltInWater: false,
+  saltLevel: 0,
 };
 
 export default function App(): React.ReactElement {
@@ -196,26 +197,37 @@ export default function App(): React.ReactElement {
     soundEffects.playClick();
     if (isLoading) return;
     setIsLoading(true);
-    setActionHistory(prev => [...prev, action]);
+
+    const newActionHistory = [...actionHistory, action];
+    setActionHistory(newActionHistory);
+
+    // Calculate the next state based on the action for immediate feedback and API context
+    let nextLabState = { ...labStateRef.current };
 
     if (action === ActionType.HEAT_WATER) {
-      setLabState(s => ({ ...s, isHeating: true }));
+      nextLabState.isHeating = true;
+      // Animation triggers via state, but we set a delayed state change for vapor
       setTimeout(() => setLabState(s => ({ ...s, showVapor: true })), 2000);
     }
-    if (action === ActionType.ADD_ICE && labStateRef.current.showVapor) {
-      setLabState(s => ({ ...s, isIceOnLid: true }));
+    if (action === ActionType.ADD_ICE && nextLabState.showVapor) {
+      nextLabState.isIceOnLid = true;
       setTimeout(() => setLabState(s => ({ ...s, showCondensation: true })), 2000);
     }
-     if (action === ActionType.DROP_ICE_IN_WATER) {
-      setLabState(s => ({ ...s, isIceInWater: true }));
-      setTimeout(() => setLabState(s => ({ ...s, showVapor: false, isHeating: false })), 5000);
+    if (action === ActionType.DROP_ICE_IN_WATER) {
+      nextLabState.isIceInWater = true;
+      setTimeout(() => setLabState(s => ({ ...s, isHeating: false, showVapor: false })), 5000);
     }
     if (action === ActionType.DISSOLVE_SALT) {
-      setLabState(s => ({ ...s, isSaltInWater: true }));
+      const newSaltLevel = Math.min(nextLabState.saltLevel + 1, 10);
+      nextLabState = { ...nextLabState, isSaltInWater: true, saltLevel: newSaltLevel };
     }
     
+    // Set the immediate state changes for the UI
+    setLabState(nextLabState);
+    
     try {
-      const response = await getAiResponse(action, labStateRef.current, actionHistory, undefined, undefined, usedQuizQuestions, apiKey);
+      // Pass the calculated `nextLabState` to the API for correct context
+      const response = await getAiResponse(action, nextLabState, newActionHistory, undefined, undefined, usedQuizQuestions, apiKey);
       const newAiMessage = { id: Date.now().toString(), sender: MessageSender.AI, text: response.explanation, audio: response.audio };
       setMessages(prev => [...prev, newAiMessage]);
       playAudio(response.audio);
@@ -229,7 +241,8 @@ export default function App(): React.ReactElement {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, actionHistory, playAudio, soundEffects, initAudioContext, usedQuizQuestions, apiKey]);
+  }, [apiKey, isLoading, actionHistory, initAudioContext, soundEffects, playAudio, usedQuizQuestions]);
+
 
   const handleUserMessage = useCallback(async (message: string) => {
     if (!apiKey) { setIsApiKeyModalOpen(true); return; }

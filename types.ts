@@ -19,6 +19,7 @@ export interface LabState {
   showCondensation: boolean;
   isIceInWater: boolean;
   isSaltInWater: boolean;
+  saltLevel: number; // 0-10, representing 0% to 100%
 }
 
 export interface AiMessage {
