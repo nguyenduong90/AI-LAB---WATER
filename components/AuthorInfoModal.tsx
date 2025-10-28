@@ -21,6 +21,8 @@ export const AuthorInfoModal: React.FC<AuthorInfoModalProps> = ({ isOpen, onClos
       >
         <h2 className="text-sm font-semibold uppercase text-blue-700 tracking-wider">Ủy Ban Nhân Dân Xã Phước Mỹ Trung</h2>
         <h1 className="text-xl font-bold text-blue-900 mt-2">Trường Tiểu Học Phước Mỹ Trung</h1>
+        <p className="text-xs text-gray-600 mt-1">Địa chỉ: ấp Phước Hậu, xã Phước Mỹ Trung, tỉnh Vĩnh Long.</p>
+        <p className="text-xs text-gray-600 mt-1">Số điện thoại: 02753.845.133</p>
         <div className="border-t-2 border-blue-200 my-4"></div>
         <p className="text-md text-gray-600">Giáo Viên Thực Hiện</p>
         <p className="text-2xl font-bold text-red-600 mt-1">Nguyễn Hải Dương</p>

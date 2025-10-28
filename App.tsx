@@ -54,7 +54,15 @@ export default function App(): React.ReactElement {
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
 
   const [labState, setLabState] = useState<LabState>(initialLabState);
-  const [messages, setMessages] = useState<AiMessage[]>([]);
+  const [messages, setMessages] = useState<AiMessage[]>(() => {
+    try {
+      const savedMessages = localStorage.getItem('chat-history');
+      return savedMessages ? JSON.parse(savedMessages) : [];
+    } catch (error) {
+      console.error('Could not parse chat history from localStorage', error);
+      return [];
+    }
+  });
   const [currentQuiz, setCurrentQuiz] = useState<Quiz | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [actionHistory, setActionHistory] = useState<ActionType[]>([]);
@@ -137,17 +145,28 @@ export default function App(): React.ReactElement {
     }
   }, [playAudio]);
   
-  // Check for API Key on initial mount
+  // Check for API Key and chat history on initial mount
   useEffect(() => {
     const storedKey = localStorage.getItem('gemini-api-key');
     if (storedKey) {
       setApiKey(storedKey);
-      loadInitialGreeting(storedKey);
+      // Only load a new initial greeting if there's no saved chat history.
+      if (messages.length === 0) {
+        loadInitialGreeting(storedKey);
+      }
     } else {
       setIsApiKeyModalOpen(true);
     }
+    // This effect should only run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Save chat history to localStorage whenever it changes
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('chat-history', JSON.stringify(messages));
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (messages.length > prevMessagesLength.current) {
@@ -249,6 +268,7 @@ export default function App(): React.ReactElement {
     if (!apiKey) { setIsApiKeyModalOpen(true); return; }
     initAudioContext();
     soundEffects.playClick();
+    localStorage.removeItem('chat-history');
     setLabState(initialLabState);
     setCurrentQuiz(null);
     setActionHistory([]);
